@@ -55,8 +55,8 @@ examples:
     parser.add_argument('args', nargs='*', help='Command arguments')
     parser.add_argument('--agent', default='default_agent', help='Agent ID (use a unique name!)')
     parser.add_argument('--summary', default=None, help='Edit summary (helps with conflict resolution)')
-    parser.add_argument('--strategy', default='prompt', choices=['prompt', 'auto', 'force'],
-                       help='Conflict resolution strategy: prompt (default), auto, force')
+    parser.add_argument('--strategy', default='prompt', choices=['prompt', 'auto'],
+                       help='Conflict resolution strategy: prompt (default), auto')
     parser.add_argument('--file', default=None, help='Read content from file instead of command line (avoids escaping issues)')
     parser.add_argument('--stdin', action='store_true', help='Read content from stdin (for piping)')
     parser.add_argument('--case-sensitive', action='store_true', help='Case-sensitive search')
@@ -984,7 +984,7 @@ Run these commands to set up:
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ Version {h['version']} - {ts}
 │ Agent: {h.get('agent', '?')}
-│ Summary: {h.get('summary', '(none)')[:60]}
+│ Summary: {(h.get('summary') or '(none)')[:60]}
 │ Status: {has_content}
 │ Preview: {preview[:60]}
 └──────────────────────────────────────────────────────────────────────────────┘""")
@@ -1022,14 +1022,10 @@ Run these commands to set up:
 """)
                 return
 
-            # Read first (to set up for edit)
-            db.read_for_edit(node_id, args.agent)
-
-            # Apply the rollback as an edit
-            result = db.edit_node(
+            # Apply the rollback via internal force edit (bypasses conflict detection)
+            result = db._force_edit(
                 node_id, old_content, args.agent,
                 f"Rollback to v{version}",
-                resolution_strategy='force'  # Force because we're intentionally overwriting
             )
 
             if result.success:
@@ -1103,9 +1099,8 @@ To actually apply this edit:
                     print(f"""
 You're {result.get('versions_behind', '?')} version(s) behind.
 
-Options:
-  1. Re-read to get latest: niwa read {node_id} --agent {args.agent}
-  2. Force edit (dangerous): niwa edit {node_id} ... --strategy force
+Re-read to get the latest version, then edit:
+  niwa read {node_id} --agent {args.agent}
 """)
 
         elif args.command == 'cleanup':

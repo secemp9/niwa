@@ -198,13 +198,43 @@ class Niwa:
     # INTELLIGENT EDIT WITH CONFLICT DETECTION
     # =========================================================================
 
+    def _force_edit(
+        self,
+        node_id: str,
+        new_content: str,
+        agent_id: str,
+        edit_summary: Optional[str] = None,
+    ) -> EditResult:
+        """Internal-only forced edit, bypasses conflict detection.
+
+        Used only by rollback. Not exposed via CLI or public API.
+        """
+        with self.env.begin(write=True) as txn:
+            node_data = txn.get(node_id.encode(), db=self.nodes_db)
+            if not node_data:
+                return EditResult(
+                    success=False,
+                    node_id=node_id,
+                    message=f"Node {node_id} not found"
+                )
+
+            node = self._deserialize(node_data)
+
+            # Clean up any pending read
+            pending_key = f"{node_id}:{agent_id}".encode()
+            txn.delete(pending_key, db=self.pending_db)
+
+            return self._apply_edit(
+                txn, node, new_content, agent_id, edit_summary
+            )
+
     def edit_node(
         self,
         node_id: str,
         new_content: str,
         agent_id: str,
         edit_summary: Optional[str] = None,
-        resolution_strategy: str = "prompt",  # prompt, auto, force
+        resolution_strategy: str = "prompt",  # prompt, auto
     ) -> EditResult:
         """
         Edit a node with intelligent conflict detection.
@@ -217,7 +247,6 @@ class Niwa:
             resolution_strategy:
                 - "prompt": Return conflict for LLM resolution
                 - "auto": Auto-merge if possible, else return conflict
-                - "force": Overwrite regardless of conflicts
         """
         with self.env.begin(write=True) as txn:
             # Get current node state
@@ -266,13 +295,7 @@ class Niwa:
             )
 
             # Handle based on strategy
-            if resolution_strategy == "force":
-                return self._apply_edit(
-                    txn, node, new_content, agent_id,
-                    f"{edit_summary} [FORCED - overwrote v{current_version}]"
-                )
-
-            elif resolution_strategy == "auto" and conflict.auto_merge_possible:
+            if resolution_strategy == "auto" and conflict.auto_merge_possible:
                 return self._apply_edit(
                     txn, node, conflict.auto_merged_content, agent_id,
                     f"Auto-merged: {edit_summary}"

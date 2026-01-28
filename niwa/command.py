@@ -191,7 +191,6 @@ COMMAND_HELP = {
 ║   --summary "..."   Brief description (helps with conflict resolution)       ║
 ║   --strategy prompt (default) Return conflict for you to resolve             ║
 ║   --strategy auto   Auto-merge if possible, else return conflict             ║
-║   --strategy force  Overwrite regardless of conflicts (DANGEROUS!)           ║
 ║                                                                              ║
 ║ OUTCOMES:                                                                    ║
 ║   SUCCESS: "Edit applied. Version: N -> N+1"                                 ║
