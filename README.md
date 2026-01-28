@@ -1,10 +1,16 @@
 # Niwa 庭
 
-**A Zen Garden for Your Plans - Collaborative Markdown Database for LLM Agents**
+**Async conflict-aware spec/planning, for me, you and your LLM/agent**
+
+```bash
+pip install niwa
+# or
+uv pip install niwa
+```
 
 Niwa (庭, "garden") is a CLI tool that enables multiple LLM agents to collaboratively edit markdown documents with automatic conflict detection and resolution. Like a zen garden where gravel is raked into patterns, Niwa helps agents weave their edits together harmoniously.
 
-Built on LMDB for high-performance concurrent access.
+Built on LMDB for high-performance concurrent access, with full GitHub Flavored Markdown support via markdown-it-py.
 
 ## Features
 
@@ -14,13 +20,14 @@ Built on LMDB for high-performance concurrent access.
 - **Sub-Agent Support**: Stored conflicts survive context switches, status commands for fresh context
 - **Version History**: Full audit trail with rollback capability
 - **Search**: Find content by keyword when you don't know the node ID
+- **Full Markdown Support**: GFM tables, task lists, footnotes, frontmatter, and more
 - **LLM-Friendly**: Comprehensive error messages with usage guides
 - **Claude Code Integration**: Hooks to inject usage context on session start and compaction
 
 ## Installation
 
 ```bash
-# From PyPI (when published)
+# From PyPI
 pip install niwa
 
 # Or from source
@@ -29,11 +36,38 @@ cd niwa
 pip install .
 
 # For development (editable install)
-pip install -e .
-
-# Or with uv
-uv pip install .
+pip install -e ".[dev]"
 ```
+
+### Dependencies
+
+Niwa automatically installs:
+- `lmdb` - Lightning Memory-Mapped Database for storage
+- `markdown-it-py` - CommonMark-compliant markdown parser
+- `mdit-py-plugins` - Frontmatter, footnotes, definition lists, task lists
+- `linkify-it-py` - Automatic URL detection
+
+## Markdown Support
+
+Niwa uses [markdown-it-py](https://github.com/executablebooks/markdown-it-py) with the GFM-like preset for robust markdown parsing. Unlike regex-based parsers, this properly handles:
+
+| Feature | Support |
+|---------|---------|
+| ATX Headings (`# H1`) | Full |
+| Setext Headings (underline) | Full |
+| Fenced Code Blocks | Full (with language hints) |
+| Indented Code Blocks | Full |
+| GFM Tables | Full (with alignment) |
+| Task Lists (`- [ ]`) | Full |
+| Strikethrough (`~~text~~`) | Full |
+| Autolinks | Full |
+| Footnotes (`[^1]`) | Full |
+| Definition Lists | Full |
+| YAML/TOML Frontmatter | Full |
+| HTML Blocks | Preserved |
+| Nested Lists/Quotes | Full |
+
+**Key benefit**: `#` characters inside code blocks, HTML comments, or inline code are correctly ignored - they won't be mistaken for headings.
 
 ## Quick Start
 
@@ -265,7 +299,7 @@ The SessionStart and PreCompact hooks ensure Claude always knows how to use Niwa
 
 1. Run `setup claude` in your project directory
 2. Creates `.claude/settings.json` with hook configuration
-3. Hooks automatically call `niwa.py hook --hook-event <event>`
+3. Hooks automatically call `niwa hook --hook-event <event>`
 4. Claude receives context about your markdown database state
 
 ### Example workflow with Claude Code
@@ -288,11 +322,60 @@ niwa setup claude
 
 ## Architecture
 
-- **Storage**: LMDB (Lightning Memory-Mapped Database) for fast concurrent access
-- **Versioning**: Each edit increments version, full history stored
-- **Conflict Detection**: Compares read version vs current version at edit time
-- **Merge Analysis**: Diff-based overlap detection with auto-merge for compatible changes
-- **Hook Integration**: Claude Code hooks for automatic context awareness
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Niwa CLI                             │
+├─────────────────────────────────────────────────────────────┤
+│  Markdown Parser (markdown-it-py)                           │
+│  ├── GFM-like preset (tables, strikethrough, autolinks)     │
+│  ├── front_matter_plugin (YAML/TOML)                        │
+│  ├── footnote_plugin                                        │
+│  ├── deflist_plugin                                         │
+│  └── tasklists_plugin                                       │
+├─────────────────────────────────────────────────────────────┤
+│  Document Model                                             │
+│  ├── Nodes (headings → content hierarchy)                   │
+│  ├── Versions (each edit increments version)                │
+│  ├── Agents (track who read/edited what)                    │
+│  └── Conflicts (stored for resolution)                      │
+├─────────────────────────────────────────────────────────────┤
+│  Storage (LMDB)                                             │
+│  ├── nodes_db      - Document nodes                         │
+│  ├── pending_db    - Pending reads by agent                 │
+│  └── conflicts_db  - Unresolved conflicts                   │
+├─────────────────────────────────────────────────────────────┤
+│  Claude Code Hooks                                          │
+│  └── SessionStart, PreCompact, PreToolUse, PostToolUse, Stop│
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key design decisions:**
+- **AST-based parsing**: Uses markdown-it-py token line mapping to extract original source text, preserving exact formatting
+- **LMDB storage**: Memory-mapped for fast concurrent access, ACID transactions
+- **Version vectors**: Each node tracks version independently for fine-grained conflict detection
+- **Agent isolation**: Each agent's pending reads/conflicts are isolated
+
+## Testing
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=niwa --cov-report=html
+```
+
+84 tests covering:
+- Basic parsing (headings, nesting, hierarchy)
+- Code blocks (fenced, indented, with # inside)
+- GFM features (tables, task lists, strikethrough)
+- Frontmatter (YAML, TOML)
+- Edge cases (BOM, line endings, unicode, emoji)
+- Adversarial inputs (unclosed fences, HTML comments)
+- Round-trip export
 
 ## Name
 

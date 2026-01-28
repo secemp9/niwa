@@ -1,11 +1,11 @@
 """
-niwa.py - 庭 (Garden) - Collaborative Markdown Database for LLM Agents
+Niwa 庭 (Garden) - Collaborative Markdown Database for LLM Agents
 
 A zen garden for your plans and specs. Multiple LLM agents can collaboratively
 edit markdown documents with automatic conflict detection and resolution.
 
 Uses LMDB for high-performance concurrent access.
-Install: pip install lmdb
+Install: pip install niwa
 """
 
 import json
@@ -24,19 +24,22 @@ except ImportError:
     print("Please install lmdb: pip install lmdb")
     raise
 
+try:
+    from markdown_it import MarkdownIt
+    from mdit_py_plugins.front_matter import front_matter_plugin
+    from mdit_py_plugins.footnote import footnote_plugin
+    from mdit_py_plugins.deflist import deflist_plugin
+    from mdit_py_plugins.tasklists import tasklists_plugin
+except ImportError:
+    print("Please install markdown-it-py and mdit-py-plugins: pip install markdown-it-py mdit-py-plugins")
+    raise
+
 # =============================================================================
 # CLAUDE CODE HOOK INTEGRATION
 # =============================================================================
 
-def generate_claude_hooks_config(use_module: bool = False) -> dict:
-    """
-    Generate Claude Code hooks configuration for niwa integration.
-
-    Args:
-        use_module: If True, use 'python -m niwa.cli' (for dev).
-                   If False, use 'niwa' command (for installed package).
-    """
-    cmd_prefix = "python3 -m niwa.cli" if use_module else "niwa"
+def generate_claude_hooks_config() -> dict:
+    """Generate Claude Code hooks configuration for niwa integration."""
     return {
         "hooks": {
             "PreToolUse": [
@@ -45,7 +48,7 @@ def generate_claude_hooks_config(use_module: bool = False) -> dict:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f"{cmd_prefix} hook --hook-event PreToolUse",
+                            "command": f"niwa hook --hook-event PreToolUse",
                             "timeout": 10
                         }
                     ]
@@ -57,7 +60,7 @@ def generate_claude_hooks_config(use_module: bool = False) -> dict:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f"{cmd_prefix} hook --hook-event PostToolUse",
+                            "command": f"niwa hook --hook-event PostToolUse",
                             "timeout": 10
                         }
                     ]
@@ -68,7 +71,7 @@ def generate_claude_hooks_config(use_module: bool = False) -> dict:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f"{cmd_prefix} hook --hook-event Stop",
+                            "command": f"niwa hook --hook-event Stop",
                             "timeout": 5
                         }
                     ]
@@ -79,7 +82,7 @@ def generate_claude_hooks_config(use_module: bool = False) -> dict:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f"{cmd_prefix} hook --hook-event SessionStart",
+                            "command": f"niwa hook --hook-event SessionStart",
                             "timeout": 5
                         }
                     ]
@@ -90,7 +93,7 @@ def generate_claude_hooks_config(use_module: bool = False) -> dict:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f"{cmd_prefix} hook --hook-event PreCompact",
+                            "command": f"niwa hook --hook-event PreCompact",
                             "timeout": 5
                         }
                     ]
@@ -172,7 +175,7 @@ def handle_hook_event(event_name: str, hook_input: Optional[dict] = None) -> int
                     f"{health['pending_edit_count']} pending edits."
                 )
                 if health['pending_conflict_count'] > 0:
-                    status_info += "\n⚠️  Run `python niwa.py conflicts --agent <name>` to review conflicts."
+                    status_info += "\n⚠️  Run `niwa conflicts --agent <name>` to review conflicts."
 
                 output = {
                     "hookSpecificOutput": {
@@ -195,7 +198,7 @@ def handle_hook_event(event_name: str, hook_input: Optional[dict] = None) -> int
             output = {
                 "hookSpecificOutput": {
                     "hookEventName": "SessionStart",
-                    "additionalContext": usage_guide + "\n\n[Niwa Status] No database initialized. Run `python niwa.py init` then `load <file.md>` to start."
+                    "additionalContext": usage_guide + "\n\n[Niwa Status] No database initialized. Run `niwa init` then `load <file.md>` to start."
                 }
             }
             print(json.dumps(output))
@@ -229,7 +232,7 @@ def handle_hook_event(event_name: str, hook_input: Optional[dict] = None) -> int
                     "[PRESERVING NIWA CONTEXT FOR POST-COMPACTION]\n\n"
                     + usage_guide
                     + status_info
-                    + "\n\nAfter compaction, use `python niwa.py tree` to see current structure."
+                    + "\n\nAfter compaction, use `niwa tree` to see current structure."
                 )
             }
         }
@@ -257,7 +260,7 @@ def handle_hook_event(event_name: str, hook_input: Optional[dict] = None) -> int
                     "hookSpecificOutput": {
                         "hookEventName": "PreToolUse",
                         "additionalContext": f"[Niwa Warning] There are {health['pending_conflict_count']} unresolved conflict(s) in the markdown database. "
-                                           f"Run 'python niwa.py conflicts --agent <name>' to review."
+                                           f"Run 'niwa conflicts --agent <name>' to review."
                     }
                 }
                 print(json.dumps(output))
@@ -281,7 +284,7 @@ def handle_hook_event(event_name: str, hook_input: Optional[dict] = None) -> int
                 "hookSpecificOutput": {
                     "hookEventName": "PostToolUse",
                     "additionalContext": f"[Niwa] Markdown file modified: {file_path}. "
-                                       f"Consider running 'python niwa.py load {file_path}' to sync changes to database."
+                                       f"Consider running 'niwa load {file_path}' to sync changes to database."
                 }
             }
             print(json.dumps(output))
@@ -304,7 +307,7 @@ def handle_hook_event(event_name: str, hook_input: Optional[dict] = None) -> int
                     "hookSpecificOutput": {
                         "hookEventName": "Stop",
                         "additionalContext": f"[Niwa Reminder] There are {health['pending_conflict_count']} unresolved conflict(s). "
-                                           f"Run 'python niwa.py conflicts --agent <name>' before ending session."
+                                           f"Run 'niwa conflicts --agent <name>' before ending session."
                     }
                 }
                 print(json.dumps(output))
@@ -316,20 +319,13 @@ def handle_hook_event(event_name: str, hook_input: Optional[dict] = None) -> int
     return 0  # Unknown event, allow
 
 
-def _is_niwa_installed() -> bool:
-    """Check if niwa command is available in PATH."""
-    import shutil
-    return shutil.which('niwa') is not None
-
-
-def setup_claude_hooks(project_dir: str, remove: bool = False, use_module: bool = False) -> Tuple[bool, str]:
+def setup_claude_hooks(project_dir: str, remove: bool = False) -> Tuple[bool, str]:
     """
     Set up or remove Claude Code hooks configuration.
 
     Args:
         project_dir: Project directory path
         remove: If True, remove the hooks instead of adding them
-        use_module: If True, force use of 'python -m niwa.cli' instead of 'niwa'
 
     Returns:
         (success, message) tuple
@@ -376,13 +372,8 @@ def setup_claude_hooks(project_dir: str, remove: bool = False, use_module: bool 
         else:
             return True, "No hooks in settings - nothing to remove."
 
-    # Setup hooks - prefer installed 'niwa' command, fall back to module
-    if use_module or not _is_niwa_installed():
-        hooks_config = generate_claude_hooks_config(use_module=True)
-        install_method = "python -m niwa.cli"
-    else:
-        hooks_config = generate_claude_hooks_config(use_module=False)
-        install_method = "niwa"
+    # Setup hooks
+    hooks_config = generate_claude_hooks_config()
 
     # Create .claude directory if needed
     claude_dir.mkdir(exist_ok=True)
@@ -1257,23 +1248,52 @@ class Niwa:
     # =========================================================================
 
     def load_markdown(self, md_path: str) -> str:
-        """Parse markdown file into LMDB structure."""
-        import re
+        """Parse markdown file into LMDB structure using markdown-it-py AST.
 
-        with open(md_path, 'r') as f:
+        Uses token line mapping to extract original source text, preserving
+        exact formatting without any string reconstruction.
+        """
+        with open(md_path, 'r', encoding='utf-8-sig') as f:
             content = f.read()
 
-        # Simple parser - extract headings and content
-        heading_pattern = re.compile(r'^(#{1,6})\s+(.+)$', re.MULTILINE)
+        # Normalize line endings and split into lines
+        content = content.replace('\r\n', '\n').replace('\r', '\n')
+        lines = content.split('\n')
+
+        # Initialize markdown-it parser with plugins for full markdown support
+        # Using "gfm-like" preset for GitHub Flavored Markdown compatibility
+        md = MarkdownIt("gfm-like")
+        md.use(front_matter_plugin)  # Handle YAML/TOML frontmatter
+        md.use(footnote_plugin)      # Handle [^1] footnotes
+        md.use(deflist_plugin)       # Handle definition lists
+        md.use(tasklists_plugin)     # Handle - [ ] task lists
+        tokens = md.parse(content)
 
         # Create root node
         root_id = "root"
         self.create_node(root_id, "root", "Document", "", 0, None, "system")
 
-        headings = list(heading_pattern.finditer(content))
+        # Extract headings with their line positions from token.map
+        # token.map = [start_line, end_line] (0-indexed, end exclusive)
+        headings = []
+        for token in tokens:
+            if token.type == 'heading_open' and token.map:
+                level = int(token.tag[1])
+                # Find the inline token that follows (contains heading text)
+                idx = tokens.index(token)
+                title = ""
+                if idx + 1 < len(tokens) and tokens[idx + 1].type == 'inline':
+                    title = tokens[idx + 1].content
+
+                headings.append({
+                    'level': level,
+                    'title': title,
+                    'start_line': token.map[0],  # Line where heading starts
+                    'end_line': token.map[1],    # Line after heading ends
+                })
 
         if not headings:
-            # No headings - single content node
+            # No headings - single content node with all content
             node_id = "content_0"
             self.create_node(node_id, "paragraph", "Content", content.strip(), 0, root_id, "system")
             return root_id
@@ -1281,14 +1301,19 @@ class Niwa:
         # Track parent stack by level
         parent_stack = [(0, root_id)]  # (level, node_id)
 
-        for i, match in enumerate(headings):
-            level = len(match.group(1))
-            title = match.group(2).strip()
+        for idx, heading in enumerate(headings):
+            level = heading['level']
+            title = heading['title']
 
-            # Get content until next heading
-            start = match.end()
-            end = headings[i + 1].start() if i + 1 < len(headings) else len(content)
-            node_content = content[start:end].strip()
+            # Content starts after heading line, ends at next heading or EOF
+            content_start_line = heading['end_line']
+            if idx + 1 < len(headings):
+                content_end_line = headings[idx + 1]['start_line']
+            else:
+                content_end_line = len(lines)
+
+            # Extract original source text for content (preserves exact formatting)
+            node_content = '\n'.join(lines[content_start_line:content_end_line]).strip()
 
             # Find parent (first item in stack with lower level)
             while parent_stack and parent_stack[-1][0] >= level:
@@ -1297,7 +1322,7 @@ class Niwa:
             parent_id = parent_stack[-1][1] if parent_stack else root_id
 
             # Create node
-            node_id = f"h{level}_{i}"
+            node_id = f"h{level}_{idx}"
             self.create_node(node_id, "heading", title, node_content, level, parent_id, "system")
 
             # Push onto stack
@@ -1853,7 +1878,7 @@ try to edit the same section simultaneously.
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ STEP 1: READ BEFORE EDIT (registers your read version)                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ python niwa.py read <node_id> --agent <your_agent_name>               │
+│ niwa read <node_id> --agent <your_agent_name>               │
 │                                                                             │
 │ This outputs the current version number. REMEMBER IT!                       │
 │ The system tracks that you read version N.                                  │
@@ -1863,7 +1888,7 @@ try to edit the same section simultaneously.
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ STEP 2: EDIT WITH YOUR CHANGES                                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ python niwa.py edit <node_id> "<new_content>" \\                       │
+│ niwa edit <node_id> "<new_content>" \\                       │
 │     --agent <your_agent_name> \\                                             │
 │     --summary "Brief description of what you changed"                       │
 │                                                                             │
@@ -1891,16 +1916,16 @@ try to edit the same section simultaneously.
 │ Choose ONE of these resolutions:                                            │
 │                                                                             │
 │ • ACCEPT_YOURS - Overwrite with your version (discards their changes)       │
-│   python niwa.py resolve <node_id> ACCEPT_YOURS --agent <you>         │
+│   niwa resolve <node_id> ACCEPT_YOURS --agent <you>         │
 │                                                                             │
 │ • ACCEPT_THEIRS - Keep their version (discards your changes)                │
-│   python niwa.py resolve <node_id> ACCEPT_THEIRS --agent <you>        │
+│   niwa resolve <node_id> ACCEPT_THEIRS --agent <you>        │
 │                                                                             │
 │ • ACCEPT_AUTO_MERGE - Use the system's suggested merge (if available)       │
-│   python niwa.py resolve <node_id> ACCEPT_AUTO_MERGE --agent <you>    │
+│   niwa resolve <node_id> ACCEPT_AUTO_MERGE --agent <you>    │
 │                                                                             │
 │ • MANUAL_MERGE - Provide your own carefully merged content                  │
-│   python niwa.py resolve <node_id> MANUAL_MERGE "<merged>" --agent me │
+│   niwa resolve <node_id> MANUAL_MERGE "<merged>" --agent me │
 │                                                                             │
 │ MANUAL_MERGE TIP: Combine BOTH changes intelligently. Don't lose work!      │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -1946,7 +1971,7 @@ try to edit the same section simultaneously.
 
 ## FINDING NODE IDs:
 
-Run `python niwa.py tree` to see all nodes:
+Run `niwa tree` to see all nodes:
 
 ```
 [root] v1 "Document" (by system)
@@ -1965,29 +1990,29 @@ Node IDs follow the pattern: h{level}_{index}
 
 ```bash
 # 1. Initialize (only once)
-python niwa.py init
+niwa init
 
 # 2. Load your markdown file
-python niwa.py load my_document.md
+niwa load my_document.md
 
 # 3. See the structure
-python niwa.py tree
+niwa tree
 
 # 4. Read a section (as agent "claude_1")
-python niwa.py read h2_3 --agent claude_1
+niwa read h2_3 --agent claude_1
 # Output: Version: 2 ... content here ...
 
 # 5. Edit with your changes
-python niwa.py edit h2_3 "My new content for this section" \\
+niwa edit h2_3 "My new content for this section" \\
     --agent claude_1 \\
     --summary "Added implementation details"
 
 # 6. If SUCCESS → done!
 # If CONFLICT → read the diff, then resolve:
-python niwa.py resolve h2_3 MANUAL_MERGE "Combined content here" --agent claude_1
+niwa resolve h2_3 MANUAL_MERGE "Combined content here" --agent claude_1
 
 # 7. Export when done
-python niwa.py export > updated_document.md
+niwa export > updated_document.md
 ```
 
 ## MULTI-AGENT PARALLEL EDITING:
@@ -2017,13 +2042,13 @@ and don't remember previous interactions, DO THIS IMMEDIATELY:
 
 ```bash
 # 1. Check if DB exists and get your suggested unique name
-python niwa.py whoami
+niwa whoami
 
 # 2. If you have a name, check your state
-python niwa.py status --agent <your_name>
+niwa status --agent <your_name>
 
 # 3. Check for any pending conflicts you need to resolve
-python niwa.py conflicts --agent <your_name>
+niwa conflicts --agent <your_name>
 ```
 
 KEY RULES FOR SUB-AGENTS:
@@ -2080,7 +2105,7 @@ COMMAND_HELP = {
 ║ PURPOSE: Initialize a new markdown database                                  ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py init                                                  ║
+║   niwa init                                                  ║
 ║                                                                              ║
 ║ WHAT IT DOES:                                                                ║
 ║   - Creates .niwa/ directory                                                 ║
@@ -2088,7 +2113,7 @@ COMMAND_HELP = {
 ║   - Creates root document node                                               ║
 ║                                                                              ║
 ║ NEXT STEP:                                                                   ║
-║   python niwa.py load <your_file.md>                                   ║
+║   niwa load <your_file.md>                                   ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
     'load': """
@@ -2098,11 +2123,11 @@ COMMAND_HELP = {
 ║ PURPOSE: Load a markdown file into the database                              ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py load <file.md>                                        ║
+║   niwa load <file.md>                                        ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   python niwa.py load main_plan.md                                     ║
-║   python niwa.py load /path/to/document.md                             ║
+║   niwa load main_plan.md                                     ║
+║   niwa load /path/to/document.md                             ║
 ║                                                                              ║
 ║ WHAT IT DOES:                                                                ║
 ║   - Parses markdown headings into a tree structure                           ║
@@ -2110,8 +2135,8 @@ COMMAND_HELP = {
 ║   - Shows the resulting tree structure                                       ║
 ║                                                                              ║
 ║ NEXT STEP:                                                                   ║
-║   python niwa.py tree    # See the structure                           ║
-║   python niwa.py read <node_id> --agent <name>   # Read a section      ║
+║   niwa tree    # See the structure                           ║
+║   niwa read <node_id> --agent <name>   # Read a section      ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
     'tree': """
@@ -2121,7 +2146,7 @@ COMMAND_HELP = {
 ║ PURPOSE: Display document structure with all node IDs                        ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py tree                                                  ║
+║   niwa tree                                                  ║
 ║                                                                              ║
 ║ OUTPUT FORMAT:                                                               ║
 ║   [node_id] vN "Title" (by agent_name)                                       ║
@@ -2145,10 +2170,10 @@ COMMAND_HELP = {
 ║ PURPOSE: Quick view of a node (does NOT track read version)                  ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py peek <node_id>                                        ║
+║   niwa peek <node_id>                                        ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   python niwa.py peek h2_5                                             ║
+║   niwa peek h2_5                                             ║
 ║                                                                              ║
 ║ ⚠️  WARNING:                                                                  ║
 ║   This does NOT register your read for conflict detection!                   ║
@@ -2167,10 +2192,10 @@ COMMAND_HELP = {
 ║ PURPOSE: Read a node FOR EDITING (tracks your read version)                  ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py read <node_id> --agent <your_agent_name>              ║
+║   niwa read <node_id> --agent <your_agent_name>              ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   python niwa.py read h2_3 --agent claude_researcher                   ║
+║   niwa read h2_3 --agent claude_researcher                   ║
 ║                                                                              ║
 ║ ⚠️  IMPORTANT:                                                                ║
 ║   - ALWAYS use --agent with a unique name for your agent                     ║
@@ -2186,7 +2211,7 @@ COMMAND_HELP = {
 ║   [content here]                                                             ║
 ║                                                                              ║
 ║ NEXT STEP:                                                                   ║
-║   python niwa.py edit h2_3 "<new content>" --agent claude_researcher   ║
+║   niwa edit h2_3 "<new content>" --agent claude_researcher   ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
     'edit': """
@@ -2198,23 +2223,23 @@ COMMAND_HELP = {
 ║ USAGE (3 ways to provide content):                                           ║
 ║                                                                              ║
 ║ 1. INLINE (simple content):                                                  ║
-║    python niwa.py edit <node_id> "<content>" --agent <name>            ║
+║    niwa edit <node_id> "<content>" --agent <name>            ║
 ║                                                                              ║
 ║ 2. FROM FILE (recommended for complex content!):                             ║
-║    python niwa.py edit <node_id> --file <path> --agent <name>          ║
+║    niwa edit <node_id> --file <path> --agent <name>          ║
 ║                                                                              ║
 ║ 3. FROM STDIN (for piping):                                                  ║
-║    cat content.txt | python niwa.py edit <node_id> --stdin --agent me  ║
+║    cat content.txt | niwa edit <node_id> --stdin --agent me  ║
 ║                                                                              ║
 ║ EXAMPLES:                                                                    ║
 ║   # Simple inline edit                                                       ║
-║   python niwa.py edit h2_3 "New content" --agent claude_1              ║
+║   niwa edit h2_3 "New content" --agent claude_1              ║
 ║                                                                              ║
 ║   # From file (avoids shell escaping issues!)                                ║
-║   python niwa.py edit h2_3 --file /tmp/content.txt --agent claude_1    ║
+║   niwa edit h2_3 --file /tmp/content.txt --agent claude_1    ║
 ║                                                                              ║
 ║   # With edit summary                                                        ║
-║   python niwa.py edit h2_3 --file content.md --agent me --summary "x"  ║
+║   niwa edit h2_3 --file content.md --agent me --summary "x"  ║
 ║                                                                              ║
 ║ ⚠️  PREREQUISITES:                                                            ║
 ║   - Run `read` first to register your base version                           ║
@@ -2242,7 +2267,7 @@ COMMAND_HELP = {
 ║ PURPOSE: Resolve a conflict after an edit attempt failed                     ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py resolve <node_id> <RESOLUTION> --agent <you>          ║
+║   niwa resolve <node_id> <RESOLUTION> --agent <you>          ║
 ║                                                                              ║
 ║ RESOLUTION OPTIONS:                                                          ║
 ║                                                                              ║
@@ -2254,18 +2279,18 @@ COMMAND_HELP = {
 ║ MANUAL_MERGE CONTENT (3 ways):                                               ║
 ║                                                                              ║
 ║   1. INLINE:                                                                 ║
-║      python niwa.py resolve h2_3 MANUAL_MERGE "<content>" --agent me   ║
+║      niwa resolve h2_3 MANUAL_MERGE "<content>" --agent me   ║
 ║                                                                              ║
 ║   2. FROM FILE (recommended for complex merges!):                            ║
-║      python niwa.py resolve h2_3 MANUAL_MERGE --file merged.md --agent ║
+║      niwa resolve h2_3 MANUAL_MERGE --file merged.md --agent ║
 ║                                                                              ║
 ║   3. FROM STDIN:                                                             ║
-║      cat merged.txt | python niwa.py resolve h2_3 MANUAL_MERGE --stdin ║
+║      cat merged.txt | niwa resolve h2_3 MANUAL_MERGE --stdin ║
 ║                                                                              ║
 ║ EXAMPLES:                                                                    ║
-║   python niwa.py resolve h2_3 ACCEPT_YOURS --agent claude_1            ║
-║   python niwa.py resolve h2_3 ACCEPT_AUTO_MERGE --agent claude_1       ║
-║   python niwa.py resolve h2_3 MANUAL_MERGE --file /tmp/m.md --agent me ║
+║   niwa resolve h2_3 ACCEPT_YOURS --agent claude_1            ║
+║   niwa resolve h2_3 ACCEPT_AUTO_MERGE --agent claude_1       ║
+║   niwa resolve h2_3 MANUAL_MERGE --file /tmp/m.md --agent me ║
 ║                                                                              ║
 ║ 💡 TIP: Use --file for merged content with quotes, newlines, special chars!  ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -2277,11 +2302,11 @@ COMMAND_HELP = {
 ║ PURPOSE: Export the database back to markdown format                         ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py export                   # Print to stdout            ║
-║   python niwa.py export > output.md      # Save to file                ║
+║   niwa export                   # Print to stdout            ║
+║   niwa export > output.md      # Save to file                ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   python niwa.py export > main_plan.md                                 ║
+║   niwa export > main_plan.md                                 ║
 ║                                                                              ║
 ║ WHAT IT DOES:                                                                ║
 ║   - Traverses the document tree                                              ║
@@ -2296,10 +2321,10 @@ COMMAND_HELP = {
 ║ PURPOSE: Update a node's title (heading text)                                ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py title <node_id> "<new_title>" --agent <you>           ║
+║   niwa title <node_id> "<new_title>" --agent <you>           ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   python niwa.py title h2_3 "Updated Section Name" --agent claude_1    ║
+║   niwa title h2_3 "Updated Section Name" --agent claude_1    ║
 ║                                                                              ║
 ║ NOTE: Title updates don't use conflict detection (titles are simple)         ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -2311,10 +2336,10 @@ COMMAND_HELP = {
 ║ PURPOSE: Add a summary/description to a node                                 ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py summarize <node_id> "<summary>" --agent <you>         ║
+║   niwa summarize <node_id> "<summary>" --agent <you>         ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   python niwa.py summarize h2_3 "Covers API integration" --agent me    ║
+║   niwa summarize h2_3 "Covers API integration" --agent me    ║
 ║                                                                              ║
 ║ NOTE: Summaries help other agents understand sections without reading fully  ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -2326,7 +2351,7 @@ COMMAND_HELP = {
 ║ PURPOSE: Check your agent's current state (CRITICAL for sub-agents!)         ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py status --agent <your_agent_name>                      ║
+║   niwa status --agent <your_agent_name>                      ║
 ║                                                                              ║
 ║ WHAT IT SHOWS:                                                               ║
 ║   - Pending reads: nodes you read but haven't edited yet                     ║
@@ -2354,8 +2379,8 @@ COMMAND_HELP = {
 ║ PURPOSE: List all pending conflicts (optionally filter by agent)             ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py conflicts                      # All conflicts        ║
-║   python niwa.py conflicts --agent <name>       # Your conflicts only  ║
+║   niwa conflicts                      # All conflicts        ║
+║   niwa conflicts --agent <name>       # Your conflicts only  ║
 ║                                                                              ║
 ║ WHAT IT SHOWS:                                                               ║
 ║   - Node ID with conflict                                                    ║
@@ -2364,7 +2389,7 @@ COMMAND_HELP = {
 ║   - Whether auto-merge is possible                                           ║
 ║                                                                              ║
 ║ TO RESOLVE A CONFLICT:                                                       ║
-║   python niwa.py resolve <node_id> <RESOLUTION> --agent <you>          ║
+║   niwa resolve <node_id> <RESOLUTION> --agent <you>          ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
     'check': """
@@ -2374,7 +2399,7 @@ COMMAND_HELP = {
 ║ PURPOSE: Verify database health (run this if things seem broken)             ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py check                                                 ║
+║   niwa check                                                 ║
 ║                                                                              ║
 ║ WHAT IT CHECKS:                                                              ║
 ║   - Database initialized?                                                    ║
@@ -2384,8 +2409,8 @@ COMMAND_HELP = {
 ║   - Active agents list                                                       ║
 ║                                                                              ║
 ║ ⚠️  IF NOT INITIALIZED:                                                       ║
-║   python niwa.py init                                                  ║
-║   python niwa.py load <your_file.md>                                   ║
+║   niwa init                                                  ║
+║   niwa load <your_file.md>                                   ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
     'agents': """
@@ -2395,7 +2420,7 @@ COMMAND_HELP = {
 ║ PURPOSE: List all agents that have used this database                        ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py agents                                                ║
+║   niwa agents                                                ║
 ║                                                                              ║
 ║ WHAT IT SHOWS:                                                               ║
 ║   - Agent names and their edit counts                                        ║
@@ -2414,8 +2439,8 @@ COMMAND_HELP = {
 ║ PURPOSE: Quick state check + suggest unique agent name if needed             ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py whoami --agent <name>   # Check your state            ║
-║   python niwa.py whoami                  # Get suggested agent name    ║
+║   niwa whoami --agent <name>   # Check your state            ║
+║   niwa whoami                  # Get suggested agent name    ║
 ║                                                                              ║
 ║ USE THIS WHEN:                                                               ║
 ║   - You're a NEW sub-agent and need a unique name                            ║
@@ -2423,7 +2448,7 @@ COMMAND_HELP = {
 ║   - You want to quickly check if you have pending work                       ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   $ python niwa.py whoami                                              ║
+║   $ niwa whoami                                              ║
 ║   Suggested agent name: agent_4                                              ║
 ║   (Use: --agent agent_4)                                                     ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -2435,13 +2460,13 @@ COMMAND_HELP = {
 ║ PURPOSE: Find content by keyword (when you don't know the node ID)           ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py search "<query>"                                      ║
-║   python niwa.py search "<query>" --case-sensitive                     ║
+║   niwa search "<query>"                                      ║
+║   niwa search "<query>" --case-sensitive                     ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   python niwa.py search "attention"                                    ║
-║   python niwa.py search "TODO"                                         ║
-║   python niwa.py search "API" --case-sensitive                         ║
+║   niwa search "attention"                                    ║
+║   niwa search "TODO"                                         ║
+║   niwa search "API" --case-sensitive                         ║
 ║                                                                              ║
 ║ OUTPUT:                                                                      ║
 ║   Shows matching nodes with:                                                 ║
@@ -2457,10 +2482,10 @@ COMMAND_HELP = {
 ║ PURPOSE: View version history for a node (for rollback/undo)                 ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py history <node_id>                                     ║
+║   niwa history <node_id>                                     ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   python niwa.py history h2_3                                          ║
+║   niwa history h2_3                                          ║
 ║                                                                              ║
 ║ OUTPUT:                                                                      ║
 ║   Lists all versions with:                                                   ║
@@ -2471,7 +2496,7 @@ COMMAND_HELP = {
 ║   - Content preview (if available)                                           ║
 ║                                                                              ║
 ║ TO ROLLBACK:                                                                 ║
-║   python niwa.py rollback <node_id> <version> --agent <you>            ║
+║   niwa rollback <node_id> <version> --agent <you>            ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
     'rollback': """
@@ -2481,14 +2506,14 @@ COMMAND_HELP = {
 ║ PURPOSE: Restore a node to a previous version                                ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py rollback <node_id> <version> --agent <you>            ║
+║   niwa rollback <node_id> <version> --agent <you>            ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
 ║   # First check history                                                      ║
-║   python niwa.py history h2_3                                          ║
+║   niwa history h2_3                                          ║
 ║                                                                              ║
 ║   # Then rollback to version 2                                               ║
-║   python niwa.py rollback h2_3 2 --agent claude_1                      ║
+║   niwa rollback h2_3 2 --agent claude_1                      ║
 ║                                                                              ║
 ║ NOTE:                                                                        ║
 ║   - Creates a NEW version with the old content (doesn't delete history)      ║
@@ -2503,11 +2528,11 @@ COMMAND_HELP = {
 ║ PURPOSE: Preview what would happen if you edited (without actually editing)  ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py dry-run <node_id> "<content>" --agent <you>           ║
-║   python niwa.py dry-run <node_id> --file <path> --agent <you>         ║
+║   niwa dry-run <node_id> "<content>" --agent <you>           ║
+║   niwa dry-run <node_id> --file <path> --agent <you>         ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   python niwa.py dry-run h2_3 "New content" --agent claude_1           ║
+║   niwa dry-run h2_3 "New content" --agent claude_1           ║
 ║                                                                              ║
 ║ OUTPUT:                                                                      ║
 ║   Would succeed: Yes/No                                                      ║
@@ -2527,8 +2552,8 @@ COMMAND_HELP = {
 ║ PURPOSE: Clean up stale pending reads and old conflicts                      ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py cleanup                                               ║
-║   python niwa.py cleanup --max-age 7200   # 2 hours                    ║
+║   niwa cleanup                                               ║
+║   niwa cleanup --max-age 7200   # 2 hours                    ║
 ║                                                                              ║
 ║ WHAT IT CLEANS:                                                              ║
 ║   - Pending reads older than 1 hour (default)                                ║
@@ -2547,8 +2572,8 @@ COMMAND_HELP = {
 ║ PURPOSE: Set up hook integration with LLM tools (Claude Code, etc.)          ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
-║   python niwa.py setup claude     # Set up Claude Code hooks           ║
-║   python niwa.py setup --remove   # Remove hook configuration          ║
+║   niwa setup claude     # Set up Claude Code hooks           ║
+║   niwa setup --remove   # Remove hook configuration          ║
 ║                                                                              ║
 ║ SUPPORTED INTEGRATIONS:                                                      ║
 ║   claude  - Claude Code (creates .claude/settings.json)                      ║
@@ -2577,7 +2602,7 @@ ERROR_PROMPTS = {
 ║ You need to specify which node to operate on.                                ║
 ║                                                                              ║
 ║ HOW TO FIND NODE IDs:                                                        ║
-║   python niwa.py tree                                                  ║
+║   niwa tree                                                  ║
 ║                                                                              ║
 ║ This shows all nodes like:                                                   ║
 ║   [h2_3] v2 "Section Title" (by agent_A)                                     ║
@@ -2592,10 +2617,10 @@ ERROR_PROMPTS = {
 ║ You need to provide the new content for the edit.                            ║
 ║                                                                              ║
 ║ CORRECT USAGE:                                                               ║
-║   python niwa.py edit <node_id> "<your new content here>" --agent <me> ║
+║   niwa edit <node_id> "<your new content here>" --agent <me> ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   python niwa.py edit h2_3 "# My Section\\n\\nNew paragraph here." \\    ║
+║   niwa edit h2_3 "# My Section\\n\\nNew paragraph here." \\    ║
 ║       --agent claude_1 --summary "Updated section"                           ║
 ║                                                                              ║
 ║ TIP: For multi-line content, use \\n for newlines or single quotes            ║
@@ -2608,12 +2633,12 @@ ERROR_PROMPTS = {
 ║ You need to specify which markdown file to load.                             ║
 ║                                                                              ║
 ║ CORRECT USAGE:                                                               ║
-║   python niwa.py load <path/to/file.md>                                ║
+║   niwa load <path/to/file.md>                                ║
 ║                                                                              ║
 ║ EXAMPLES:                                                                    ║
-║   python niwa.py load main_plan.md                                     ║
-║   python niwa.py load ./docs/specification.md                          ║
-║   python niwa.py load /home/user/project/README.md                     ║
+║   niwa load main_plan.md                                     ║
+║   niwa load ./docs/specification.md                          ║
+║   niwa load /home/user/project/README.md                     ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
     'node_not_found': """
@@ -2628,13 +2653,13 @@ ERROR_PROMPTS = {
 ║   - Node was in a different document                                         ║
 ║                                                                              ║
 ║ HOW TO FIX:                                                                  ║
-║   1. List all nodes: python niwa.py tree                               ║
+║   1. List all nodes: niwa tree                               ║
 ║   2. Find the correct node_id                                                ║
 ║   3. Try again with the correct ID                                           ║
 ║                                                                              ║
 ║ If tree shows nothing, you may need to:                                      ║
-║   python niwa.py init                                                  ║
-║   python niwa.py load <your_file.md>                                   ║
+║   niwa init                                                  ║
+║   niwa load <your_file.md>                                   ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
     'no_resolution': """
@@ -2651,8 +2676,8 @@ ERROR_PROMPTS = {
 ║   MANUAL_MERGE      - Provide your own merged content                        ║
 ║                                                                              ║
 ║ EXAMPLES:                                                                    ║
-║   python niwa.py resolve h2_3 ACCEPT_YOURS --agent me                  ║
-║   python niwa.py resolve h2_3 MANUAL_MERGE "merged content" --agent me ║
+║   niwa resolve h2_3 ACCEPT_YOURS --agent me                  ║
+║   niwa resolve h2_3 MANUAL_MERGE "merged content" --agent me ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
     'unknown_command': """
@@ -2688,7 +2713,7 @@ ERROR_PROMPTS = {
 ║   help      - Show full guide                                                ║
 ║                                                                              ║
 ║ Get help for any command:                                                    ║
-║   python niwa.py help                                                  ║
+║   niwa help                                                  ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
 }
@@ -2719,7 +2744,7 @@ def print_command_help(command: str):
     if command in COMMAND_HELP:
         print(COMMAND_HELP[command])
     else:
-        print(f"No detailed help for '{command}'. Run 'python niwa.py help' for full guide.")
+        print(f"No detailed help for '{command}'. Run 'niwa help' for full guide.")
 
 
 def main():
@@ -2775,7 +2800,6 @@ examples:
     parser.add_argument('--max-age', type=int, default=3600, help='Max age in seconds for cleanup (default 3600)')
     parser.add_argument('--dry-run', action='store_true', help='Preview edit without applying')
     parser.add_argument('--remove', action='store_true', help='Remove hook configuration (for setup --remove)')
-    parser.add_argument('--dev', action='store_true', help='Use python -m niwa.cli instead of niwa command (for development)')
     # Hook event handling (called by Claude Code hooks)
     parser.add_argument('--hook-event', default=None, help='Hook event name (internal use by hooks)')
     parser.add_argument('--hook-input', default=None, help='Path to hook input JSON file (internal use)')
@@ -2801,8 +2825,8 @@ examples:
 ║ ❌ ERROR: Missing integration target                                         ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║ USAGE:                                                                       ║
-║   python niwa.py setup claude     # Set up Claude Code hooks           ║
-║   python niwa.py setup --remove   # Remove hooks (after target)        ║
+║   niwa setup claude     # Set up Claude Code hooks           ║
+║   niwa setup --remove   # Remove hooks (after target)        ║
 ║                                                                              ║
 ║ SUPPORTED TARGETS:                                                           ║
 ║   claude - Claude Code (creates .claude/settings.json)                       ║
@@ -2814,7 +2838,7 @@ examples:
 
         if target == 'claude':
             project_dir = os.getcwd()
-            success, message = setup_claude_hooks(project_dir, remove=args.remove, use_module=args.dev)
+            success, message = setup_claude_hooks(project_dir, remove=args.remove)
 
             if success:
                 if args.remove:
@@ -2826,7 +2850,6 @@ examples:
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
                 else:
-                    cmd = "python -m niwa.cli" if args.dev else "niwa"
                     print(f"""
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║ ✅ CLAUDE CODE HOOKS INSTALLED                                               ║
@@ -2843,7 +2866,7 @@ examples:
 ║ Claude will remember how to use Niwa even after /compact.                    ║
 ║                                                                              ║
 ║ TO REMOVE LATER:                                                             ║
-║   {cmd} setup claude --remove                                                ║
+║   niwa setup claude --remove                                                ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
             else:
@@ -2864,7 +2887,7 @@ examples:
 ║   claude - Claude Code (creates .claude/settings.json)                       ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   python niwa.py setup claude                                          ║
+║   niwa setup claude                                          ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
             return
@@ -2896,10 +2919,10 @@ examples:
 ║ The database doesn't exist yet. You need to initialize it first.             ║
 ║                                                                              ║
 ║ STEP 1: Initialize                                                           ║
-║   python niwa.py init                                                  ║
+║   niwa init                                                  ║
 ║                                                                              ║
 ║ STEP 2: Load your markdown file                                              ║
-║   python niwa.py load <your_file.md>                                   ║
+║   niwa load <your_file.md>                                   ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
         return
@@ -2925,7 +2948,7 @@ examples:
 ║ GOOD EXAMPLES: claude_1, researcher_A, agent-42                              ║
 ║ BAD EXAMPLES: "my agent", agent@1, agent/sub                                 ║
 ║                                                                              ║
-║ Get a suggested name: python niwa.py whoami                            ║
+║ Get a suggested name: niwa whoami                            ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
             db.close()
@@ -2941,9 +2964,9 @@ examples:
 ║ A database already exists at .niwa/                                          ║
 ║                                                                              ║
 ║ OPTIONS:                                                                     ║
-║   - Continue using existing database: python niwa.py tree              ║
-║   - Load another file: python niwa.py load <file.md>                   ║
-║   - Start fresh: rm -rf .niwa && python niwa.py init                   ║
+║   - Continue using existing database: niwa tree              ║
+║   - Load another file: niwa load <file.md>                   ║
+║   - Start fresh: rm -rf .niwa && niwa init                   ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
             else:
@@ -2955,10 +2978,10 @@ examples:
 ║ Created database at .niwa/                                                   ║
 ║                                                                              ║
 ║ NEXT STEP:                                                                   ║
-║   python niwa.py load <your_markdown_file.md>                          ║
+║   niwa load <your_markdown_file.md>                          ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   python niwa.py load main_plan.md                                     ║
+║   niwa load main_plan.md                                     ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
 
@@ -2993,8 +3016,8 @@ examples:
             print(f"""
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║ NEXT STEPS:                                                                  ║
-║   python niwa.py tree                  # View structure anytime        ║
-║   python niwa.py read <node_id> --agent <your_name>  # Read to edit    ║
+║   niwa tree                  # View structure anytime        ║
+║   niwa read <node_id> --agent <your_name>  # Read to edit    ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
 
@@ -3008,7 +3031,7 @@ examples:
 ║ No documents loaded yet.                                                     ║
 ║                                                                              ║
 ║ LOAD A DOCUMENT:                                                             ║
-║   python niwa.py load <your_file.md>                                   ║
+║   niwa load <your_file.md>                                   ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
             else:
@@ -3053,7 +3076,7 @@ CONTENT:
 ─────────────────────────────────────────────────────────────────────────────────
 
 NEXT: To edit this node, run:
-  python niwa.py edit {node_id} "<your new content>" --agent {args.agent} --summary "what you changed"
+  niwa edit {node_id} "<your new content>" --agent {args.agent} --summary "what you changed"
 """)
             else:
                 print_error('node_not_found', {'provided_id': node_id})
@@ -3101,10 +3124,10 @@ NEXT: To edit this node, run:
 ║    echo "Your content here" > /tmp/edit_content.txt                          ║
 ║                                                                              ║
 ║ 2. Edit using --file:                                                        ║
-║    python niwa.py edit h2_3 --file /tmp/edit_content.txt --agent me    ║
+║    niwa edit h2_3 --file /tmp/edit_content.txt --agent me    ║
 ║                                                                              ║
 ║ Or use --stdin for piping:                                                   ║
-║    cat content.txt | python niwa.py edit h2_3 --stdin --agent me       ║
+║    cat content.txt | niwa edit h2_3 --stdin --agent me       ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
                 return
@@ -3136,8 +3159,8 @@ NEXT: To edit this node, run:
                 print(f"""
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║ 💾 CONFLICT STORED - Can be retrieved later with:                            ║
-║    python niwa.py status --agent {args.agent:<37} ║
-║    python niwa.py conflicts --agent {args.agent:<34} ║
+║    niwa status --agent {args.agent:<37} ║
+║    niwa conflicts --agent {args.agent:<34} ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
                 print(f"""
@@ -3146,17 +3169,17 @@ NEXT: To edit this node, run:
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                              ║
 ║ Option 1 - Use YOUR version (discards their changes):                        ║
-║   python niwa.py resolve {node_id} ACCEPT_YOURS --agent {args.agent:<14} ║
+║   niwa resolve {node_id} ACCEPT_YOURS --agent {args.agent:<14} ║
 ║                                                                              ║
 ║ Option 2 - Keep THEIR version (discards your changes):                       ║
-║   python niwa.py resolve {node_id} ACCEPT_THEIRS --agent {args.agent:<13} ║
+║   niwa resolve {node_id} ACCEPT_THEIRS --agent {args.agent:<13} ║
 ║                                                                              ║""")
                 if result.conflict.auto_merge_possible:
                     print(f"""║ Option 3 - Use AUTO-MERGE (system's suggestion):                             ║
-║   python niwa.py resolve {node_id} ACCEPT_AUTO_MERGE --agent {args.agent:<8} ║
+║   niwa resolve {node_id} ACCEPT_AUTO_MERGE --agent {args.agent:<8} ║
 ║                                                                              ║""")
                 print(f"""║ Option 4 - MANUAL MERGE (combine both - RECOMMENDED):                        ║
-║   python niwa.py resolve {node_id} MANUAL_MERGE "<merged>" --agent {args.agent:<5} ║
+║   niwa resolve {node_id} MANUAL_MERGE "<merged>" --agent {args.agent:<5} ║
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
@@ -3243,16 +3266,16 @@ NEXT: To edit this node, run:
 ║ USAGE (3 ways):                                                              ║
 ║                                                                              ║
 ║ 1. INLINE:                                                                   ║
-║    python niwa.py resolve <id> MANUAL_MERGE "<content>" --agent <me>   ║
+║    niwa resolve <id> MANUAL_MERGE "<content>" --agent <me>   ║
 ║                                                                              ║
 ║ 2. FROM FILE (recommended for complex content!):                             ║
-║    python niwa.py resolve <id> MANUAL_MERGE --file <path> --agent <me> ║
+║    niwa resolve <id> MANUAL_MERGE --file <path> --agent <me> ║
 ║                                                                              ║
 ║ 3. FROM STDIN:                                                               ║
-║    cat merged.txt | python niwa.py resolve <id> MANUAL_MERGE --stdin   ║
+║    cat merged.txt | niwa resolve <id> MANUAL_MERGE --stdin   ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   python niwa.py resolve h2_3 MANUAL_MERGE --file /tmp/merged.md       ║
+║   niwa resolve h2_3 MANUAL_MERGE --file /tmp/merged.md       ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
                 return
@@ -3344,7 +3367,7 @@ NEXT: To edit this node, run:
                     auto = "auto-merge available" if pc.get('auto_merge_possible') else "manual merge needed"
                     print(f"  [{pc['node_id']}] \"{pc.get('node_title', '?')[:40]}\" ({auto})")
                     print(f"     Your version was based on v{pc.get('your_base_version')}, current is v{pc.get('current_version')}")
-                    print(f"     → Resolve: python niwa.py resolve {pc['node_id']} <RESOLUTION> --agent {args.agent}")
+                    print(f"     → Resolve: niwa resolve {pc['node_id']} <RESOLUTION> --agent {args.agent}")
                 print()
             else:
                 print("✅ No pending conflicts.\n")
@@ -3392,9 +3415,9 @@ NEXT: To edit this node, run:
 │ Version conflict: v{c.get('your_base_version')} → v{c.get('current_version')} ({auto})
 │
 │ Resolve with:
-│   python niwa.py resolve {c['node_id']} ACCEPT_YOURS --agent {c['agent_id']}
-│   python niwa.py resolve {c['node_id']} ACCEPT_THEIRS --agent {c['agent_id']}
-│   python niwa.py resolve {c['node_id']} MANUAL_MERGE "<content>" --agent {c['agent_id']}
+│   niwa resolve {c['node_id']} ACCEPT_YOURS --agent {c['agent_id']}
+│   niwa resolve {c['node_id']} ACCEPT_THEIRS --agent {c['agent_id']}
+│   niwa resolve {c['node_id']} MANUAL_MERGE "<content>" --agent {c['agent_id']}
 └──────────────────────────────────────────────────────────────────────────────┘""")
 
         elif args.command == 'check':
@@ -3421,8 +3444,8 @@ NEXT: To edit this node, run:
 ⚠️  DATABASE NOT INITIALIZED!
 
 Run these commands to set up:
-  python niwa.py init
-  python niwa.py load <your_file.md>
+  niwa init
+  niwa load <your_file.md>
 """)
 
         elif args.command == 'agents':
@@ -3474,14 +3497,14 @@ Run these commands to set up:
 ║ Suggested unique name: {suggested:<53} ║
 ║                                                                              ║
 ║ Use it like this:                                                            ║
-║   python niwa.py read <node_id> --agent {suggested:<29} ║
-║   python niwa.py edit <node_id> "<content>" --agent {suggested:<18} ║
+║   niwa read <node_id> --agent {suggested:<29} ║
+║   niwa edit <node_id> "<content>" --agent {suggested:<18} ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 ⚠️  IMPORTANT FOR SUB-AGENTS:
    - Use a UNIQUE name to avoid conflicts with other agents
    - Use the SAME name consistently for all your reads/edits
-   - Check existing agents with: python niwa.py agents
+   - Check existing agents with: niwa agents
 """)
             else:
                 # Agent specified - show their state
@@ -3504,10 +3527,10 @@ Run these commands to set up:
 """)
                 if pending_conflicts > 0:
                     print(f"⚠️  You have {pending_conflicts} conflict(s) to resolve!")
-                    print(f"    Run: python niwa.py conflicts --agent {args.agent}")
+                    print(f"    Run: niwa conflicts --agent {args.agent}")
                 if stale_reads > 0:
                     print(f"⚠️  You have {stale_reads} stale read(s) - re-read before editing!")
-                    print(f"    Run: python niwa.py status --agent {args.agent}")
+                    print(f"    Run: niwa status --agent {args.agent}")
                 if pending_conflicts == 0 and stale_reads == 0:
                     print("✅ Ready to work! No pending issues.")
 
@@ -3553,7 +3576,7 @@ Run these commands to set up:
                     for line_num, line_text in r['matching_lines'][:3]:
                         print(f"│   Line {line_num}: {line_text[:65]}...")
                     print("│")
-                    print(f"│ → Read: python niwa.py read {r['node_id']} --agent <your_name>")
+                    print(f"│ → Read: niwa read {r['node_id']} --agent <your_name>")
                     print("└──────────────────────────────────────────────────────────────────────────────┘")
 
                 if len(results) > 10:
@@ -3573,7 +3596,7 @@ Run these commands to set up:
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║ Node "{node_id}" not found or has no history.                                ║
 ║                                                                              ║
-║ Check available nodes: python niwa.py tree                             ║
+║ Check available nodes: niwa tree                             ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
             else:
@@ -3597,7 +3620,7 @@ Run these commands to set up:
 └──────────────────────────────────────────────────────────────────────────────┘""")
 
                 print(f"""
-💡 To rollback: python niwa.py rollback {node_id} <version> --agent <you>
+💡 To rollback: niwa rollback {node_id} <version> --agent <you>
 """)
 
         elif args.command == 'rollback':
@@ -3624,7 +3647,7 @@ Run these commands to set up:
 ║   - Version doesn't exist                                                    ║
 ║   - Content wasn't stored (older versions)                                   ║
 ║                                                                              ║
-║ Check available versions: python niwa.py history {node_id}             ║
+║ Check available versions: niwa history {node_id}             ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
                 return
@@ -3694,7 +3717,7 @@ Run these commands to set up:
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 To actually apply this edit:
-  python niwa.py edit {node_id} {"--file " + args.file if args.file else '"<content>"'} --agent {args.agent}
+  niwa edit {node_id} {"--file " + args.file if args.file else '"<content>"'} --agent {args.agent}
 """)
             else:
                 icon = "⚠️" if result['reason'] == 'conflict' else "❌"
@@ -3712,8 +3735,8 @@ To actually apply this edit:
 You're {result.get('versions_behind', '?')} version(s) behind.
 
 Options:
-  1. Re-read to get latest: python niwa.py read {node_id} --agent {args.agent}
-  2. Force edit (dangerous): python niwa.py edit {node_id} ... --strategy force
+  1. Re-read to get latest: niwa read {node_id} --agent {args.agent}
+  2. Force edit (dangerous): niwa edit {node_id} ... --strategy force
 """)
 
         elif args.command == 'cleanup':

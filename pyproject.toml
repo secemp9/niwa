@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "niwa"
-version = "0.1.1"
-description = "Collaborative Markdown Database for LLM Agents - A zen garden for your plans and specs"
+version = "0.1.0"
+description = "Async conflict-aware spec/planning, for me, you and your LLM/agent"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.8"
 authors = [
-    { name = "Nourdine" }
+    { name = "Nourdine Lotfi", email = "secemp9@gmail.com" }
 ]
 keywords = [
     "markdown",
@@ -39,6 +39,9 @@ classifiers = [
 ]
 dependencies = [
     "lmdb>=1.4.0",
+    "markdown-it-py>=3.0.0",
+    "mdit-py-plugins>=0.4.0",
+    "linkify-it-py>=2.0.0",
 ]
 
 [project.optional-dependencies]
