@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "niwa"
+version = "0.1.0"
+description = "Collaborative Markdown Database for LLM Agents - A zen garden for your plans and specs"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+authors = [
+    { name = "Nourdine" }
+]
+keywords = [
+    "markdown",
+    "database",
+    "llm",
+    "agents",
+    "collaboration",
+    "conflict-resolution",
+    "multi-agent",
+    "claude",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Text Processing :: Markup :: Markdown",
+]
+dependencies = [
+    "lmdb>=1.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[project.scripts]
+niwa = "niwa.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/secemp9/niwa"
+Documentation = "https://github.com/secemp9/niwa#readme"
+Repository = "https://github.com/secemp9/niwa"
+Issues = "https://github.com/secemp9/niwa/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["niwa"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/niwa",
+    "/README.md",
+    "/LICENSE",
+]
