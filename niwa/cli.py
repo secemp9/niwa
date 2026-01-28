@@ -2726,12 +2726,44 @@ def main():
     import sys
     import argparse
 
+    COMMANDS_HELP = """
+commands:
+  init                  Initialize a new database
+  load <file>           Load markdown file into database
+  tree                  Show document structure with node IDs
+  peek <id>             Quick view (no edit tracking)
+  read <id>             Read for editing (tracks version for conflict detection)
+  edit <id> <content>   Edit a node's content
+  resolve <id> <type>   Resolve a conflict (ACCEPT_YOURS|ACCEPT_THEIRS|ACCEPT_AUTO_MERGE|MANUAL_MERGE)
+  search <query>        Search content by keyword
+  history <id>          View version history of a node
+  rollback <id> <ver>   Restore node to previous version
+  export                Export database back to markdown
+  status                Check agent's pending reads/conflicts
+  conflicts             List unresolved conflicts for agent
+  agents                List all agents who've used this database
+  whoami                Get suggested unique agent name
+  check                 Verify database health
+  cleanup               Remove stale pending reads/conflicts
+  setup <target>        Set up integrations (e.g., 'setup claude')
+  help [command]        Show help (optionally for specific command)
+
+examples:
+  niwa init                              # Initialize database
+  niwa load spec.md                      # Load a markdown file
+  niwa tree                              # See structure
+  niwa read h2_3 --agent claude_1        # Read node for editing
+  niwa edit h2_3 "new content" --agent claude_1  # Edit node
+  niwa export > output.md                # Export to markdown
+"""
+
     parser = argparse.ArgumentParser(
         description="Niwa 庭 - Collaborative Markdown Database for LLM Agents",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Run 'python niwa.py help' for the full LLM agent guide."
+        epilog=COMMANDS_HELP
     )
-    parser.add_argument('command', nargs='?', default='help', help='Command to run')
+    parser.add_argument('command', nargs='?', default='help', metavar='COMMAND',
+                       help='Command to run (see commands below)')
     parser.add_argument('args', nargs='*', help='Command arguments')
     parser.add_argument('--agent', default='default_agent', help='Agent ID (use a unique name!)')
     parser.add_argument('--summary', default=None, help='Edit summary (helps with conflict resolution)')
