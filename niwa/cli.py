@@ -10,7 +10,6 @@ Install: pip install niwa
 
 import json
 import time
-import hashlib
 import difflib
 import os
 from pathlib import Path
@@ -719,6 +718,30 @@ class Niwa:
         with self.env.begin() as txn:
             data = txn.get(node_id.encode(), db=self.nodes_db)
             return self._deserialize(data) if data else None
+
+    def next_node_id(self, level: int) -> str:
+        """Generate the next sequential node ID for a given level (e.g. h1_0, h1_1, h2_5)."""
+        import re
+        pattern = re.compile(rf'^h{level}_(\d+)$')
+        max_idx = -1
+        with self.env.begin() as txn:
+            cursor = txn.cursor(db=self.nodes_db)
+            for key, _ in cursor:
+                m = pattern.match(key.decode())
+                if m:
+                    max_idx = max(max_idx, int(m.group(1)))
+        return f"h{level}_{max_idx + 1}"
+
+    def find_child_by_title(self, parent_id: str, title: str) -> Optional[Dict]:
+        """Find a child node under parent_id with matching title (case-insensitive)."""
+        parent = self.read_node(parent_id)
+        if not parent:
+            return None
+        for child_id in parent.get('children', []):
+            child = self.read_node(child_id)
+            if child and child.get('title', '').lower() == title.lower():
+                return child
+        return None
 
     def read_for_edit(self, node_id: str, agent_id: str) -> Optional[Dict]:
         """
@@ -1937,7 +1960,8 @@ try to edit the same section simultaneously.
 ╠═══════════════╬══════════════════════════════════════════════════════════════╣
 ║ SETUP:        ║                                                              ║
 ║ init          ║ Initialize a new database (run once)                         ║
-║ load <file>   ║ Load a markdown file into the database                       ║
+║ add <title>   ║ Add a node directly (preferred way to build the tree)        ║
+║ load <file>   ║ ⚠️ Load markdown file (ONLY if user explicitly requests it!)  ║
 ║ check         ║ Verify database health and state                             ║
 ╠═══════════════╬══════════════════════════════════════════════════════════════╣
 ║ BROWSE:       ║                                                              ║
@@ -1992,24 +2016,27 @@ Node IDs follow the pattern: h{level}_{index}
 # 1. Initialize (only once)
 niwa init
 
-# 2. Load your markdown file
-niwa load my_document.md
+# 2. Build the tree by adding nodes
+niwa add "Requirements" --agent claude_1
+# Output: NODE_ID: h1_0
+niwa add "Auth Flow" --parent h1_0 --agent claude_1
+# Output: NODE_ID: h2_0
 
 # 3. See the structure
 niwa tree
 
 # 4. Read a section (as agent "claude_1")
-niwa read h2_3 --agent claude_1
-# Output: Version: 2 ... content here ...
+niwa read h2_0 --agent claude_1
+# Output: Version: 1 ... content here ...
 
 # 5. Edit with your changes
-niwa edit h2_3 "My new content for this section" \\
+niwa edit h2_0 "My new content for this section" \\
     --agent claude_1 \\
     --summary "Added implementation details"
 
 # 6. If SUCCESS → done!
 # If CONFLICT → read the diff, then resolve:
-niwa resolve h2_3 MANUAL_MERGE "Combined content here" --agent claude_1
+niwa resolve h2_0 MANUAL_MERGE "Combined content here" --agent claude_1
 
 # 7. Export when done
 niwa export > updated_document.md
@@ -2062,6 +2089,8 @@ KEY RULES FOR SUB-AGENTS:
 ╔════════════════════════════════════╦═════════════════════════════════════════╗
 ║ MISTAKE                            ║ FIX                                     ║
 ╠════════════════════════════════════╬═════════════════════════════════════════╣
+║ Using `load` without being asked   ║ Use `add` to build the tree. NEVER use  ║
+║                                    ║ `load` unless the user explicitly asks!  ║
 ║ Editing without reading first      ║ Always `read` before `edit`             ║
 ║ Forgetting --agent flag            ║ Add --agent <unique_name>               ║
 ║ Using same name as another agent   ║ Run `agents` to see used names          ║
@@ -2113,13 +2142,16 @@ COMMAND_HELP = {
 ║   - Creates root document node                                               ║
 ║                                                                              ║
 ║ NEXT STEP:                                                                   ║
-║   niwa load <your_file.md>                                   ║
+║   niwa add "Section Title" --agent <name>                    ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
     'load': """
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║ COMMAND: load                                                                ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
+║ ⚠️ DO NOT USE unless the user explicitly asks you to load a file!             ║
+║ Use `niwa add` to build the tree incrementally instead.                     ║
+║                                                                              ║
 ║ PURPOSE: Load a markdown file into the database                              ║
 ║                                                                              ║
 ║ USAGE:                                                                       ║
@@ -2137,6 +2169,39 @@ COMMAND_HELP = {
 ║ NEXT STEP:                                                                   ║
 ║   niwa tree    # See the structure                           ║
 ║   niwa read <node_id> --agent <name>   # Read a section      ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+""",
+    'add': """
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ COMMAND: add                                                                 ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ PURPOSE: Add a new node directly without loading a markdown file            ║
+║                                                                              ║
+║ USAGE:                                                                       ║
+║   niwa add <title> [content]                                                ║
+║                                                                              ║
+║ OPTIONS:                                                                     ║
+║   --parent <id>   Parent node ID (default: root)                            ║
+║   --file <path>   Read content from file                                    ║
+║   --stdin          Read content from stdin                                   ║
+║   --agent <name>  Agent performing the add                                  ║
+║                                                                              ║
+║ EXAMPLES:                                                                    ║
+║   niwa add "Requirements"                           # Under root            ║
+║   niwa add "Auth Flow" --parent h1_0                # Under h1_0            ║
+║   niwa add "Design" "Some body text"                # With content          ║
+║   niwa add "Spec" --file spec_content.md            # From file             ║
+║   echo "piped" | niwa add "Notes" --stdin           # From stdin            ║
+║                                                                              ║
+║ CONFLICT DETECTION:                                                          ║
+║   If a node with the same title already exists under the same parent,       ║
+║   the command blocks and shows the existing node. Edit it instead.          ║
+║   Output includes NODE_ID: <id> for machine parsing.                        ║
+║                                                                              ║
+║ NOTES:                                                                       ║
+║   - Node ID is auto-generated (e.g. h1_a3f2)                               ║
+║   - Level is inferred from parent (parent level + 1)                        ║
+║   - Node type is always 'heading'                                           ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
     'tree': """
@@ -2410,7 +2475,7 @@ COMMAND_HELP = {
 ║                                                                              ║
 ║ ⚠️  IF NOT INITIALIZED:                                                       ║
 ║   niwa init                                                  ║
-║   niwa load <your_file.md>                                   ║
+║   niwa add "Section Title" --agent <name>                    ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
     'agents': """
@@ -2659,7 +2724,7 @@ ERROR_PROMPTS = {
 ║                                                                              ║
 ║ If tree shows nothing, you may need to:                                      ║
 ║   niwa init                                                  ║
-║   niwa load <your_file.md>                                   ║
+║   niwa add "Section Title" --agent <name>                    ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """,
     'no_resolution': """
@@ -2755,6 +2820,7 @@ def main():
 commands:
   init                  Initialize a new database
   load <file>           Load markdown file into database
+  add <title> [content] Add a node directly (--parent, --file, --stdin)
   tree                  Show document structure with node IDs
   peek <id>             Quick view (no edit tracking)
   read <id>             Read for editing (tracks version for conflict detection)
@@ -2775,7 +2841,7 @@ commands:
 
 examples:
   niwa init                              # Initialize database
-  niwa load spec.md                      # Load a markdown file
+  niwa add "Requirements" --agent claude  # Add a node directly
   niwa tree                              # See structure
   niwa read h2_3 --agent claude_1        # Read node for editing
   niwa edit h2_3 "new content" --agent claude_1  # Edit node
@@ -2799,6 +2865,7 @@ examples:
     parser.add_argument('--case-sensitive', action='store_true', help='Case-sensitive search')
     parser.add_argument('--max-age', type=int, default=3600, help='Max age in seconds for cleanup (default 3600)')
     parser.add_argument('--dry-run', action='store_true', help='Preview edit without applying')
+    parser.add_argument('--parent', default=None, help='Parent node ID for add command (default: root)')
     parser.add_argument('--remove', action='store_true', help='Remove hook configuration (for setup --remove)')
     # Hook event handling (called by Claude Code hooks)
     parser.add_argument('--hook-event', default=None, help='Hook event name (internal use by hooks)')
@@ -2921,8 +2988,8 @@ examples:
 ║ STEP 1: Initialize                                                           ║
 ║   niwa init                                                  ║
 ║                                                                              ║
-║ STEP 2: Load your markdown file                                              ║
-║   niwa load <your_file.md>                                   ║
+║ STEP 2: Add nodes to build the tree                                          ║
+║   niwa add "Section Title" --agent <name>                    ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
         return
@@ -2930,7 +2997,7 @@ examples:
     db = Niwa()
 
     # Validate agent name for commands that use it
-    agent_commands = ['read', 'edit', 'resolve', 'status', 'conflicts', 'whoami', 'dry-run', 'rollback']
+    agent_commands = ['read', 'edit', 'resolve', 'status', 'conflicts', 'whoami', 'dry-run', 'rollback', 'add']
     if args.command in agent_commands and args.agent != 'default_agent':
         valid, msg = db.validate_agent_name(args.agent)
         if not valid:
@@ -2965,7 +3032,7 @@ examples:
 ║                                                                              ║
 ║ OPTIONS:                                                                     ║
 ║   - Continue using existing database: niwa tree              ║
-║   - Load another file: niwa load <file.md>                   ║
+║   - Add nodes directly: niwa add "Title" --agent <name>      ║
 ║   - Start fresh: rm -rf .niwa && niwa init                   ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
@@ -2978,10 +3045,11 @@ examples:
 ║ Created database at .niwa/                                                   ║
 ║                                                                              ║
 ║ NEXT STEP:                                                                   ║
-║   niwa load <your_markdown_file.md>                          ║
+║   niwa add "Section Title" --agent <name>           # Build tree directly   ║
 ║                                                                              ║
 ║ EXAMPLE:                                                                     ║
-║   niwa load main_plan.md                                     ║
+║   niwa add "Requirements" --agent claude_1                    ║
+║   niwa add "Design" --parent h1_0 --agent claude_1            ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
 
@@ -3021,6 +3089,118 @@ examples:
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
 
+        elif args.command == 'add':
+            if not args.args:
+                print("""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ ❌ MISSING TITLE                                                            ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ USAGE:                                                                      ║
+║   niwa add "Section Title"                          # Add under root        ║
+║   niwa add "Subsection" --parent h1_0               # Add under parent      ║
+║   niwa add "Section" "content here"                 # With inline content   ║
+║   niwa add "Section" --file content.md              # Content from file     ║
+║   niwa add "Section" --stdin                        # Content from stdin    ║
+║   niwa add "Section" --agent alice                  # Specify agent         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+""")
+                return
+
+            title = args.args[0]
+
+            # Determine parent
+            parent_id = args.parent if args.parent else 'root'
+            parent_node = db.read_node(parent_id)
+            if not parent_node:
+                print(f"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ ❌ PARENT NODE NOT FOUND                                                    ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ Node ID: {parent_id:<66} ║
+║                                                                              ║
+║ Run 'niwa tree' to see available node IDs.                                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+""")
+                return
+
+            # Determine content
+            content = ''
+            if args.file:
+                try:
+                    with open(args.file, 'r') as f:
+                        content = f.read()
+                except Exception as e:
+                    print(f"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ ❌ CANNOT READ FILE                                                         ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ {str(e)[:76]:<76} ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+""")
+                    return
+            elif args.stdin:
+                import sys
+                content = sys.stdin.read()
+            elif len(args.args) >= 2:
+                content = args.args[1]
+
+            # Check for duplicate title under same parent
+            existing = db.find_child_by_title(parent_id, title)
+            if existing:
+                ex_id = existing['id']
+                ex_agent = existing.get('last_agent', 'unknown')
+                ex_ver = existing.get('version', 1)
+                ex_content = existing.get('content', '')
+                ex_preview = ex_content[:60] + ('...' if len(ex_content) > 60 else '') if ex_content else '(empty)'
+                print(f"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ ⚠️  DUPLICATE TITLE DETECTED                                                ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ A node with this title already exists under the same parent.               ║
+║                                                                              ║
+║ EXISTING NODE:                                                               ║
+║   ID:      {ex_id:<64} ║
+║   Title:   {existing.get('title', '')[:64]:<64} ║
+║   Agent:   {ex_agent:<64} ║
+║   Version: {str(ex_ver):<64} ║
+║   Content: {ex_preview[:64]:<64} ║
+║                                                                              ║
+║ OPTIONS:                                                                     ║
+║   1. Edit existing: niwa read {ex_id} --agent <name>           ║
+║   2. Use a different title                                                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+""")
+                print(f"EXISTING_NODE_ID: {ex_id}")
+                return
+
+            # Infer level from parent
+            level = parent_node.get('level', 0) + 1
+
+            # Generate next sequential node ID
+            node_id = db.next_node_id(level)
+
+            agent_id = args.agent
+            success = db.create_node(node_id, 'heading', title, content, level, parent_id, agent_id)
+
+            if success:
+                print(f"✅ Created node '{node_id}' under '{parent_id}'\n")
+                print(f"   Title: {title}")
+                if content:
+                    preview = content[:80] + ('...' if len(content) > 80 else '')
+                    print(f"   Content: {preview}")
+                print(f"   Level: {level}")
+                print(f"   Agent: {agent_id}\n")
+                print(f"NODE_ID: {node_id}\n")
+                print(db.get_tree())
+            else:
+                print(f"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ ❌ FAILED TO CREATE NODE                                                    ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ Node ID '{node_id}' may already exist.                                      ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+""")
+
         elif args.command == 'tree':
             tree = db.get_tree()
             if not tree or tree.strip() == "# Document Structure\n":
@@ -3028,10 +3208,10 @@ examples:
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║ ℹ️  DATABASE IS EMPTY                                                         ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║ No documents loaded yet.                                                     ║
+║ No nodes created yet.                                                        ║
 ║                                                                              ║
-║ LOAD A DOCUMENT:                                                             ║
-║   niwa load <your_file.md>                                   ║
+║ ADD YOUR FIRST NODE:                                                         ║
+║   niwa add "Section Title" --agent <name>                    ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
             else:
@@ -3445,7 +3625,7 @@ NEXT: To edit this node, run:
 
 Run these commands to set up:
   niwa init
-  niwa load <your_file.md>
+  niwa add "Section Title" --agent <name>
 """)
 
         elif args.command == 'agents':
