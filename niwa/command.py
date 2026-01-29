@@ -326,7 +326,6 @@ COMMAND_HELP = {
 ║   - Node ID with conflict                                                    ║
 ║   - Which agent has the conflict                                             ║
 ║   - When the conflict was stored                                             ║
-║   - Whether auto-merge is possible                                           ║
 ║                                                                              ║
 ║ TO RESOLVE A CONFLICT:                                                       ║
 ║   niwa resolve <node_id> <RESOLUTION> --agent <you>          ║

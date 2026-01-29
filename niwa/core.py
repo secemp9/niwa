@@ -428,7 +428,6 @@ try to edit the same section simultaneously.
 │ SUCCESS: Version N → N+1     │  │ CONFLICT DETECTED!                       │
 │ You're done.                 │  │ - Shows what they changed                │
 └──────────────────────────────┘  │ - Shows what you changed                 │
-                                  │ - Suggests auto-merge if possible        │
                                   │ - Asks you to resolve                    │
                                   └──────────────────────────────────────────┘
                                                  │
