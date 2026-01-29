@@ -572,7 +572,7 @@ class TestConflicts:
             "--agent", "a2", cwd=db
         )
         combined = out + err
-        # System auto-merges non-overlapping changes (confidence >= 0.95)
+        # System auto-merges non-overlapping changes (deterministic line-range check)
         assert "EDIT SUCCESSFUL" in combined or "Auto-merged" in combined
 
     def test_system_does_not_auto_merge_overlapping(self, db):

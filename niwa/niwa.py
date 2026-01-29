@@ -239,9 +239,10 @@ class Niwa:
         Edit a node with intelligent conflict detection.
 
         When a conflict is detected, the system automatically merges if the
-        changes are in completely different parts of the document (confidence
-        >= 0.95). All other conflicts require explicit agent resolution.
-        Agents have no control over when auto-merge fires — the system decides.
+        changes are in completely different parts of the document (no
+        overlapping line ranges). All other conflicts require explicit agent
+        resolution. Agents have no control over when auto-merge fires — the
+        system decides deterministically based on difflib line ranges.
 
         Args:
             node_id: Node to edit
