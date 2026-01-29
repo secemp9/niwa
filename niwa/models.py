@@ -111,27 +111,17 @@ class ConflictAnalysis:
 
 """
 
-        if self.auto_merge_possible and self.auto_merged_content:
-            prompt += f"""### AUTO-MERGE SUGGESTION
-```
-{self.auto_merged_content}
-```
-
-"""
-
         prompt += """### RESOLUTION OPTIONS
 
 1. **ACCEPT_YOURS**: Overwrite with your version (discards their changes)
 2. **ACCEPT_THEIRS**: Keep current version (discards your changes)
-3. **ACCEPT_AUTO_MERGE**: Use the auto-merged version (if available)
-4. **MANUAL_MERGE**: Provide your own merged content
+3. **MANUAL_MERGE**: Provide your own merged content
 
 ### Your Response
 
 Please respond with ONE of:
 - `ACCEPT_YOURS` - if your changes should take precedence
 - `ACCEPT_THEIRS` - if their changes should take precedence
-- `ACCEPT_AUTO_MERGE` - if the auto-merge looks correct
 - `MANUAL_MERGE` followed by your merged content in a code block
 
 Consider:

@@ -214,7 +214,6 @@ COMMAND_HELP = {
 ║                                                                              ║
 ║   ACCEPT_YOURS      - Use your version, discard theirs                       ║
 ║   ACCEPT_THEIRS     - Use their version, discard yours                       ║
-║   ACCEPT_AUTO_MERGE - Use system's suggested merge (if available)            ║
 ║   MANUAL_MERGE      - Provide your own merged content (RECOMMENDED!)         ║
 ║                                                                              ║
 ║ MANUAL_MERGE CONTENT (3 ways):                                               ║
@@ -230,7 +229,7 @@ COMMAND_HELP = {
 ║                                                                              ║
 ║ EXAMPLES:                                                                    ║
 ║   niwa resolve h2_3 ACCEPT_YOURS --agent claude_1            ║
-║   niwa resolve h2_3 ACCEPT_AUTO_MERGE --agent claude_1       ║
+║   niwa resolve h2_3 ACCEPT_THEIRS --agent claude_1           ║
 ║   niwa resolve h2_3 MANUAL_MERGE --file /tmp/m.md --agent me ║
 ║                                                                              ║
 ║ 💡 TIP: Use --file for merged content with quotes, newlines, special chars!  ║

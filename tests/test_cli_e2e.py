@@ -643,30 +643,6 @@ class TestConflicts:
         assert "h1_0" not in out
         assert "h1_1" in out
 
-    def test_resolve_accept_auto_merge(self, db):
-        """ACCEPT_AUTO_MERGE uses the system's suggested merge."""
-        niwa("add", "Section", "--agent", "a1", cwd=db)
-
-        # Set multi-line content
-        niwa("read", "h1_0", "--agent", "a1", cwd=db)
-        niwa("edit", "h1_0", "line1\nline2\nline3", "--agent", "a1", cwd=db)
-
-        # Both read v2
-        niwa("read", "h1_0", "--agent", "a1", cwd=db)
-        niwa("read", "h1_0", "--agent", "a2", cwd=db)
-
-        # a1 changes line1
-        niwa("edit", "h1_0", "CHANGED1\nline2\nline3", "--agent", "a1", cwd=db)
-
-        # a2 changes line3 — compatible changes, auto-merge should be available
-        niwa("edit", "h1_0", "line1\nline2\nCHANGED3", "--agent", "a2", cwd=db)
-
-        # Try ACCEPT_AUTO_MERGE
-        rc, out, err = niwa("resolve", "h1_0", "ACCEPT_AUTO_MERGE", "--agent", "a2", cwd=db)
-        combined = out + err
-        # Should succeed if auto-merge was possible
-        assert rc == 0 or "RESOLUTION FAILED" in combined
-
     def test_multi_hop_staleness(self, db):
         """Agent reads v1, two others edit sequentially (v2, v3).
         Agent's conflict should show they are 2 versions behind."""

@@ -94,7 +94,7 @@ QUICK REFERENCE (prefix all with 'niwa'):
   niwa resolve <node_id> <RESOLUTION> --agent <name>  # Resolve conflict
   niwa export                            # Export full markdown from database
 
-CONFLICT RESOLUTIONS: ACCEPT_YOURS | ACCEPT_THEIRS | ACCEPT_AUTO_MERGE | MANUAL_MERGE "content"
+CONFLICT RESOLUTIONS: ACCEPT_YOURS | ACCEPT_THEIRS | MANUAL_MERGE "content"
 
 WORKFLOW:
   1. Use `niwa tree` to find node IDs
@@ -444,9 +444,6 @@ try to edit the same section simultaneously.
 │ • ACCEPT_THEIRS - Keep their version (discards your changes)                │
 │   niwa resolve <node_id> ACCEPT_THEIRS --agent <you>        │
 │                                                                             │
-│ • ACCEPT_AUTO_MERGE - Use the system's suggested merge (if available)       │
-│   niwa resolve <node_id> ACCEPT_AUTO_MERGE --agent <you>    │
-│                                                                             │
 │ • MANUAL_MERGE - Provide your own carefully merged content                  │
 │   niwa resolve <node_id> MANUAL_MERGE "<merged>" --agent me │
 │                                                                             │
@@ -608,7 +605,6 @@ When you see a CONFLICT, ask yourself:
 
 1. "Are our changes in DIFFERENT parts of the content?"
    → YES: Use MANUAL_MERGE to combine both
-   → The auto-merge might work, check ACCEPT_AUTO_MERGE suggestion
 
 2. "Did we both change the SAME lines?"
    → Read both versions carefully
@@ -705,7 +701,6 @@ ERROR_PROMPTS = {
 ║                                                                              ║
 ║   ACCEPT_YOURS      - Use your version, discard theirs                       ║
 ║   ACCEPT_THEIRS     - Use their version, discard yours                       ║
-║   ACCEPT_AUTO_MERGE - Use system's suggested merge                           ║
 ║   MANUAL_MERGE      - Provide your own merged content                        ║
 ║                                                                              ║
 ║ EXAMPLES:                                                                    ║

@@ -176,9 +176,6 @@ niwa resolve h2_3 ACCEPT_YOURS --agent me
 # Use their version (discard yours)
 niwa resolve h2_3 ACCEPT_THEIRS --agent me
 
-# Use auto-merge suggestion
-niwa resolve h2_3 ACCEPT_AUTO_MERGE --agent me
-
 # Manual merge (recommended!)
 niwa resolve h2_3 MANUAL_MERGE "merged content" --agent me
 niwa resolve h2_3 MANUAL_MERGE --file merged.md --agent me

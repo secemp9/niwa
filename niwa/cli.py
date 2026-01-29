@@ -24,7 +24,7 @@ commands:
   peek <id>             Quick view (no edit tracking)
   read <id>             Read for editing (tracks version for conflict detection)
   edit <id> <content>   Edit a node's content
-  resolve <id> <type>   Resolve a conflict (ACCEPT_YOURS|ACCEPT_THEIRS|ACCEPT_AUTO_MERGE|MANUAL_MERGE)
+  resolve <id> <type>   Resolve a conflict (ACCEPT_YOURS|ACCEPT_THEIRS|MANUAL_MERGE)
   search <query>        Search content by keyword
   history <id>          View version history of a node
   rollback <id> <ver>   Restore node to previous version
@@ -548,12 +548,8 @@ NEXT: To edit this node, run:
 ║                                                                              ║
 ║ Option 2 - Keep THEIR version (discards your changes):                       ║
 ║   niwa resolve {node_id} ACCEPT_THEIRS --agent {args.agent:<13} ║
-║                                                                              ║""")
-                if result.conflict.auto_merge_possible:
-                    print(f"""║ Option 3 - Use AUTO-MERGE (system's suggestion):                             ║
-║   niwa resolve {node_id} ACCEPT_AUTO_MERGE --agent {args.agent:<8} ║
-║                                                                              ║""")
-                print(f"""║ Option 4 - MANUAL MERGE (combine both - RECOMMENDED):                        ║
+║                                                                              ║
+║ Option 3 - MANUAL MERGE (combine both - RECOMMENDED):                        ║
 ║   niwa resolve {node_id} MANUAL_MERGE "<merged>" --agent {args.agent:<5} ║
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -606,7 +602,7 @@ NEXT: To edit this node, run:
                 elif len(args.args) > 2:
                     manual_content = args.args[2]
 
-            valid_resolutions = ['ACCEPT_YOURS', 'ACCEPT_THEIRS', 'ACCEPT_AUTO_MERGE', 'MANUAL_MERGE']
+            valid_resolutions = ['ACCEPT_YOURS', 'ACCEPT_THEIRS', 'MANUAL_MERGE']
             if resolution not in valid_resolutions:
                 print(LLM_SYSTEM_PROMPT)
                 print("\n" + "=" * 80)
@@ -619,7 +615,6 @@ NEXT: To edit this node, run:
 ║ Valid options are:                                                           ║
 ║   - ACCEPT_YOURS                                                             ║
 ║   - ACCEPT_THEIRS                                                            ║
-║   - ACCEPT_AUTO_MERGE                                                        ║
 ║   - MANUAL_MERGE                                                             ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """)
@@ -655,7 +650,7 @@ NEXT: To edit this node, run:
                 return
 
             # Look up the stored conflict for this agent+node so ACCEPT_YOURS
-            # and ACCEPT_AUTO_MERGE have access to the conflict data.
+            # has access to the conflict data.
             stored_conflict = None
             stored_conflicts = db.get_pending_conflicts(args.agent)
             for sc in stored_conflicts:

@@ -575,7 +575,7 @@ class Niwa:
 
         Args:
             node_id: Node with conflict
-            resolution: One of "ACCEPT_YOURS", "ACCEPT_THEIRS", "ACCEPT_AUTO_MERGE", "MANUAL_MERGE"
+            resolution: One of "ACCEPT_YOURS", "ACCEPT_THEIRS", "MANUAL_MERGE"
             agent_id: Resolving agent
             manual_content: Required if resolution is "MANUAL_MERGE"
             conflict: The ConflictAnalysis object (for verification)
@@ -610,12 +610,6 @@ class Niwa:
                     new_version=node['version'],
                     message="Conflict resolved: kept current version"
                 )
-
-            elif resolution == "ACCEPT_AUTO_MERGE":
-                if not conflict or not conflict.auto_merged_content:
-                    return EditResult(success=False, node_id=node_id, message="No auto-merge available")
-                final_content = conflict.auto_merged_content
-                summary = "Conflict resolved: auto-merged (non-overlapping changes)"
 
             elif resolution == "MANUAL_MERGE":
                 if not manual_content:
