@@ -1,6 +1,7 @@
 """niwa - Auto-split package"""
 
-__version__ = "0.2.2"
+from importlib.metadata import version as _pkg_version
+__version__ = _pkg_version("niwa")
 
 from .niwa import Niwa
 from .cli import main

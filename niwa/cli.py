@@ -6,6 +6,7 @@ import sys
 import argparse
 from datetime import datetime
 
+from . import __version__
 from .command import print_command_help
 from .core import LLM_SYSTEM_PROMPT, handle_hook_event, print_error, setup_claude_hooks
 from .models import ConflictAnalysis, ConflictType
@@ -51,6 +52,7 @@ examples:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=COMMANDS_HELP
     )
+    parser.add_argument('-v', '--version', action='version', version=f'niwa {__version__}')
     parser.add_argument('command', nargs='?', default='help', metavar='COMMAND',
                        help='Command to run (see commands below)')
     parser.add_argument('args', nargs='*', help='Command arguments')
