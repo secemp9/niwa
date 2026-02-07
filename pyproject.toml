@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "niwa"
-version = "0.2.9"
+version = "0.3.0"
 description = "Async conflict-aware spec/planning, for me, you and your LLM/agent"
 readme = "README.md"
 license = "MIT"
