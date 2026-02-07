@@ -70,6 +70,7 @@ examples:
     parser.add_argument('--section', type=int, default=None, help='Show specific section number from content structure')
     parser.add_argument('--lines', default=None, help='Show specific line range (e.g., "1-25")')
     parser.add_argument('--remove', action='store_true', help='Remove hook configuration (for setup --remove)')
+    parser.add_argument('--global', action='store_true', dest='global_hooks', help='Install hooks globally (~/.claude/settings.json)')
     parser.add_argument('--under', default=None, help='Target parent node ID for move command')
     # Hook event handling (called by Claude Code hooks)
     parser.add_argument('--hook-event', default=None, help='Hook event name (internal use by hooks)')
@@ -108,7 +109,10 @@ examples:
         target = args.args[0].lower()
 
         if target == 'claude':
-            project_dir = os.getcwd()
+            if args.global_hooks:
+                project_dir = str(Path.home())
+            else:
+                project_dir = os.getcwd()
             success, message = setup_claude_hooks(project_dir, remove=args.remove)
 
             if success:
